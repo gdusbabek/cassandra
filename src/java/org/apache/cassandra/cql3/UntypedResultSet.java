@@ -52,6 +52,30 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     {
         return new FromPager(select, pager, pageSize);
     }
+    
+    public static UntypedResultSet empty() {
+        return new UntypedResultSet() {
+            @Override
+            public int size() {
+                return 0;
+            }
+
+            @Override
+            public Row one() {
+                return null;
+            }
+
+            @Override
+            public List<ColumnSpecification> metadata() {
+                return null;
+            }
+
+            @Override
+            public Iterator<Row> iterator() {
+                return null;
+            }
+        };
+    }
 
     public boolean isEmpty()
     {

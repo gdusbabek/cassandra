@@ -28,6 +28,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -289,6 +290,10 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet executeInternal(String query, Object... values)
     {
+        if (Config.isClientMode()) {
+            return UntypedResultSet.empty();
+        }
+        
         ParsedStatement.Prepared prepared = prepareInternal(query);
         ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
         if (result instanceof ResultMessage.Rows)

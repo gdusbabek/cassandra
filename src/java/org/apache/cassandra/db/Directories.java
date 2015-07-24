@@ -39,6 +39,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.service.StorageService;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,7 +190,12 @@ public class Directories
     public Directories(final CFMetaData metadata)
     {
         this.metadata = metadata;
-
+        
+        if (StorageService.instance.isClientMode()) {
+            dataPaths = null;
+            return;
+        }
+        
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
         int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         String cfName = idx >= 0 ? metadata.cfName.substring(0, idx) : metadata.cfName;

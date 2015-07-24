@@ -448,8 +448,10 @@ public final class SchemaKeyspace
      */
     public static synchronized void mergeSchema(Collection<Mutation> mutations) throws ConfigurationException, IOException
     {
-        mergeSchema(mutations, true);
-        Schema.instance.updateVersionAndAnnounce();
+        if (!Config.isClientMode()) {
+            mergeSchema(mutations, true);
+            Schema.instance.updateVersionAndAnnounce();
+        }
     }
 
     public static synchronized void mergeSchema(Collection<Mutation> mutations, boolean doFlush) throws IOException
@@ -468,7 +470,7 @@ public final class SchemaKeyspace
 
         mutations.forEach(Mutation::apply);
 
-        if (doFlush)
+        if (doFlush && !StorageService.instance.isClientMode())
             flush();
 
         // with new data applied

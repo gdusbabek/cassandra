@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -455,12 +456,16 @@ public class Schema
         assert getKSMetaData(ksm.name) == null;
         load(ksm);
 
-        Keyspace.open(ksm.name);
-        MigrationManager.instance.notifyCreateKeyspace(ksm);
+        if (!StorageService.instance.isClientMode()) {
+            Keyspace.open(ksm.name);
+            MigrationManager.instance.notifyCreateKeyspace(ksm);
+        }
     }
 
     public void updateKeyspace(String ksName, KeyspaceParams newParams)
     {
+        if (StorageService.instance.isClientMode())
+            return;
         KeyspaceMetadata ksm = update(ksName, ks -> ks.withSwapped(newParams));
         MigrationManager.instance.notifyUpdateKeyspace(ksm);
     }
@@ -482,9 +487,11 @@ public class Schema
 
             unload(cfm);
 
-            if (DatabaseDescriptor.isAutoSnapshot())
-                cfs.snapshot(snapshotName);
-            Keyspace.open(ksm.name).dropCf(cfm.cfId);
+            if (!StorageService.instance.isClientMode()) {
+                if (DatabaseDescriptor.isAutoSnapshot())
+                    cfs.snapshot(snapshotName);
+                Keyspace.open(ksm.name).dropCf(cfm.cfId);
+            }
 
             droppedCfs.add(cfm.cfId);
         }
@@ -498,7 +505,8 @@ public class Schema
         // force a new segment in the CL
         CommitLog.instance.forceRecycleAllSegments(droppedCfs);
 
-        MigrationManager.instance.notifyDropKeyspace(ksm);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyDropKeyspace(ksm);
     }
 
     public void addTable(CFMetaData cfm)
@@ -526,9 +534,11 @@ public class Schema
         assert cfm != null;
         boolean columnsDidChange = cfm.reload();
 
-        Keyspace keyspace = Keyspace.open(cfm.ksName);
-        keyspace.getColumnFamilyStore(cfm.cfName).reload();
-        MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
+        if (!StorageService.instance.isClientMode()) {
+            Keyspace keyspace = Keyspace.open(cfm.ksName);
+            keyspace.getColumnFamilyStore(cfm.cfName).reload();
+            MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
+        }
     }
 
     public void dropTable(String ksName, String tableName)
@@ -550,48 +560,55 @@ public class Schema
 
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfm), true);
 
-        if (DatabaseDescriptor.isAutoSnapshot())
-            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
-        Keyspace.open(ksName).dropCf(cfm.cfId);
-        MigrationManager.instance.notifyDropColumnFamily(cfm);
-
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
+        if (!StorageService.instance.isClientMode()) {
+            if (DatabaseDescriptor.isAutoSnapshot())
+                cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+            Keyspace.open(ksName).dropCf(cfm.cfId);
+            MigrationManager.instance.notifyDropColumnFamily(cfm);
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
+        }
     }
 
     public void addType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.with(ut)));
-        MigrationManager.instance.notifyCreateUserType(ut);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyCreateUserType(ut);
     }
 
     public void updateType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.without(ut.name).with(ut)));
-        MigrationManager.instance.notifyUpdateUserType(ut);
+        if (!StorageService.instance.isClientMode()) 
+            MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     public void dropType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.without(ut.name)));
-        MigrationManager.instance.notifyDropUserType(ut);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyDropUserType(ut);
     }
 
     public void addFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.with(udf)));
-        MigrationManager.instance.notifyCreateFunction(udf);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyCreateFunction(udf);
     }
 
     public void updateFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.without(udf.name(), udf.argTypes()).with(udf)));
-        MigrationManager.instance.notifyUpdateFunction(udf);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyUpdateFunction(udf);
     }
 
     public void dropFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.without(udf.name(), udf.argTypes())));
-        MigrationManager.instance.notifyDropFunction(udf);
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyDropFunction(udf);
     }
 
     public void addAggregate(UDAggregate uda)

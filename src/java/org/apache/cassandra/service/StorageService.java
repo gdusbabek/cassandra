@@ -229,13 +229,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* true if node is rebuilding and receiving data */
     private final AtomicBoolean isRebuilding = new AtomicBoolean();
 
+    private boolean isClientMode;
     private boolean initialized;
     private volatile boolean joined = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    private static enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    private static enum Mode { STARTING, NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
     private Mode operationMode = Mode.STARTING;
 
     /* Used for tracking drain progress */
@@ -550,14 +551,46 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // for testing only
-    public void unsafeInitialize() throws ConfigurationException
+    public void unsafeInitialize() throws ConfigurationException { this.initClient(); }
+    
+    // starts up the fat client!
+    public void initClient() throws ConfigurationException
     {
+        // We don't wait, because we're going to actually try to work on
+        if (initialized)
+        {
+            if (!isClientMode)
+                throw new UnsupportedOperationException("StorageService does not support switching modes.");
+            return;
+        }
         initialized = true;
+        isClientMode = true;
+        logger.info("Starting up client gossip");
+        setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
+    
         if (!MessagingService.instance().isListening())
             MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        
+        // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
+        outer:
+        while (true)
+        {
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            for (InetAddress address : Gossiper.instance.getLiveMembers())
+            {
+                if (!Gossiper.instance.isGossipOnlyMember(address))
+                    break outer;
+            }
+        }
+        
+        // sleep until any schema migrations have finished
+        while (!MigrationManager.isReadyForBootstrap())
+        {
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
     }
 
     public void populateTokenMetadata()
@@ -587,7 +620,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("CQL supported versions: {} (default: {})",
                     StringUtils.join(ClientState.getCQLSupportedVersion(), ","), ClientState.DEFAULT_CQL_VERSION);
 
+        if (initialized)
+        {
+            if (isClientMode)
+                throw new UnsupportedOperationException("StorageService does not support switching modes.");
+            return;
+        }
         initialized = true;
+        isClientMode = false;
 
         try
         {
@@ -1772,6 +1812,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void notifyDown(InetAddress endpoint)
     {
+        if (isClientMode) return;
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onDown(endpoint);
     }
@@ -1787,12 +1828,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void notifyMoved(InetAddress endpoint)
     {
+        if (isClientMode) return;
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onMove(endpoint);
     }
 
     private void notifyLeft(InetAddress endpoint)
     {
+        if (isClientMode) return;
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onLeaveCluster(endpoint);
     }
@@ -1928,17 +1971,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.debug("New node {} at token {}", endpoint, token);
                 tokensToUpdateInMetadata.add(token);
-                tokensToUpdateInSystemKeyspace.add(token);
+                if (!isClientMode)
+                    tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (endpoint.equals(currentOwner))
             {
                 // set state back to normal, since the node may have tried to leave, but failed and is now back up
                 tokensToUpdateInMetadata.add(token);
-                tokensToUpdateInSystemKeyspace.add(token);
+                if (!isClientMode)
+                    tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
                 tokensToUpdateInMetadata.add(token);
+                    if (!isClientMode)
                 tokensToUpdateInSystemKeyspace.add(token);
 
                 // currentOwner is no longer current, endpoint is.  Keep track of these moves, because when
@@ -2138,7 +2184,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void removeEndpoint(InetAddress endpoint)
     {
         Gossiper.instance.removeEndpoint(endpoint);
-        SystemKeyspace.removeEndpoint(endpoint);
+        if (!isClientMode)
+            SystemKeyspace.removeEndpoint(endpoint);
     }
 
     protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
@@ -2334,6 +2381,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
+        if (isClientMode) return;
+        
         MigrationManager.instance.scheduleSchemaPull(endpoint, state);
 
         if (tokenMetadata.isMember(endpoint))
@@ -3820,6 +3869,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return operationMode == Mode.STARTING;
     }
+    
+    public boolean isClientMode() { return isClientMode; }
 
     public String getDrainProgress()
     {

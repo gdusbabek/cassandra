@@ -70,7 +70,8 @@ public class Keyspace
     // proper directories here as well as in CassandraDaemon.
     static
     {
-        if (!Config.isClientMode())
+        // todo: may be bad to refernce StorageService here?
+        if (!Config.isClientMode() && !StorageService.instance.isClientMode())
             DatabaseDescriptor.createAllDirectories();
     }
 

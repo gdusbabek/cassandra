@@ -70,8 +70,7 @@ public class Keyspace
     // proper directories here as well as in CassandraDaemon.
     static
     {
-        // todo: may be bad to refernce StorageService here?
-        if (!Config.isClientMode() && !StorageService.instance.isClientMode())
+        if (!Config.isClientMode())
             DatabaseDescriptor.createAllDirectories();
     }
 
@@ -103,7 +102,15 @@ public class Keyspace
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || Schema.isSystemKeyspace(keyspaceName);
-        return open(keyspaceName, Schema.instance, true);
+        try {
+            return open(keyspaceName, Schema.instance, true);
+        } catch (NullPointerException ex) {
+            // hey. This is debug code.
+            logger.error("MISSED SOMETHING IN " + keyspaceName);
+            logger.error(ex.getMessage(), ex);
+            System.exit(-1);
+            return null;
+        }
     }
 
     // to only be used by org.apache.cassandra.tools.Standalone* classes
@@ -114,6 +121,11 @@ public class Keyspace
 
     private static Keyspace open(String keyspaceName, Schema schema, boolean loadSSTables)
     {
+        // don't load sstables if this is client only mode (except do load system tables).
+        if (loadSSTables && StorageService.instance.isClientMode() && !(Schema.isSystemKeyspace(keyspaceName) || Schema.isQuasiSystemKeyspace(keyspaceName))) {
+            loadSSTables = false;
+        }
+        
         Keyspace keyspaceInstance = schema.getKeyspaceInstance(keyspaceName);
 
         if (keyspaceInstance == null)

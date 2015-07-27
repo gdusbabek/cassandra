@@ -191,8 +191,8 @@ public class Directories
     {
         this.metadata = metadata;
         
-        if (StorageService.instance.isClientMode()) {
-            dataPaths = null;
+        if (StorageService.instance.isClientMode() && !(Schema.isSystemKeyspace(metadata.ksName) || Schema.isQuasiSystemKeyspace(metadata.ksName))) {
+            dataPaths = new File[]{};
             return;
         }
         

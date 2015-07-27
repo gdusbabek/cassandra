@@ -290,10 +290,6 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet executeInternal(String query, Object... values)
     {
-        if (Config.isClientMode()) {
-            return UntypedResultSet.empty();
-        }
-        
         ParsedStatement.Prepared prepared = prepareInternal(query);
         ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
         if (result instanceof ResultMessage.Rows)

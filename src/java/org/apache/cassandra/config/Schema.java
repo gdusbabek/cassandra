@@ -24,7 +24,10 @@ import java.util.*;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.auth.AuthKeyspace;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,8 +54,16 @@ public class Schema
 
     public static final Schema instance = new Schema();
 
-    /* system keyspace names (the ones with LocalStrategy replication strategy) */
-    public static final Set<String> SYSTEM_KEYSPACE_NAMES = ImmutableSet.of(SystemKeyspace.NAME, SchemaKeyspace.NAME);
+    /* system keyspace names */
+    public static final Set<String> SYSTEM_KEYSPACE_NAMES = ImmutableSet.of(
+            SystemKeyspace.NAME, // local replication
+            SchemaKeyspace.NAME); // local replication
+    
+    
+    public static final Set<String> QUASI_SYSTEM_KEYSPACE_NAMES = ImmutableSet.of(          
+            TraceKeyspace.NAME, // simple replication (2)
+            AuthKeyspace.NAME, // simple replication (1) is this not local?
+            SystemDistributedKeyspace.NAME); // simple replication (3)
 
     /**
      * longest permissible KS or CF name.  Our main concern is that filename not be more than 255 characters;
@@ -103,6 +114,10 @@ public class Schema
     public static boolean isSystemKeyspace(String keyspaceName)
     {
         return SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
+    }
+    
+    public static boolean isQuasiSystemKeyspace(String keyspaceName) {
+        return QUASI_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
     }
 
     /**
@@ -455,17 +470,13 @@ public class Schema
     {
         assert getKSMetaData(ksm.name) == null;
         load(ksm);
-
-        if (!StorageService.instance.isClientMode()) {
-            Keyspace.open(ksm.name);
-            MigrationManager.instance.notifyCreateKeyspace(ksm);
-        }
+        
+        Keyspace.open(ksm.name);
+        MigrationManager.instance.notifyCreateKeyspace(ksm);
     }
 
     public void updateKeyspace(String ksName, KeyspaceParams newParams)
     {
-        if (StorageService.instance.isClientMode())
-            return;
         KeyspaceMetadata ksm = update(ksName, ks -> ks.withSwapped(newParams));
         MigrationManager.instance.notifyUpdateKeyspace(ksm);
     }
@@ -486,12 +497,10 @@ public class Schema
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfm.cfName);
 
             unload(cfm);
-
-            if (!StorageService.instance.isClientMode()) {
-                if (DatabaseDescriptor.isAutoSnapshot())
-                    cfs.snapshot(snapshotName);
-                Keyspace.open(ksm.name).dropCf(cfm.cfId);
-            }
+        
+            if (DatabaseDescriptor.isAutoSnapshot())
+                cfs.snapshot(snapshotName);
+            Keyspace.open(ksm.name).dropCf(cfm.cfId);
 
             droppedCfs.add(cfm.cfId);
         }
@@ -504,9 +513,8 @@ public class Schema
 
         // force a new segment in the CL
         CommitLog.instance.forceRecycleAllSegments(droppedCfs);
-
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropKeyspace(ksm);
+        
+        MigrationManager.instance.notifyDropKeyspace(ksm);
     }
 
     public void addTable(CFMetaData cfm)
@@ -533,12 +541,10 @@ public class Schema
         CFMetaData cfm = getCFMetaData(ksName, tableName);
         assert cfm != null;
         boolean columnsDidChange = cfm.reload();
-
-        if (!StorageService.instance.isClientMode()) {
-            Keyspace keyspace = Keyspace.open(cfm.ksName);
-            keyspace.getColumnFamilyStore(cfm.cfName).reload();
-            MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
-        }
+        
+        Keyspace keyspace = Keyspace.open(cfm.ksName);
+        keyspace.getColumnFamilyStore(cfm.cfName).reload();
+        MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
     }
 
     public void dropTable(String ksName, String tableName)
@@ -572,43 +578,37 @@ public class Schema
     public void addType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.with(ut)));
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyCreateUserType(ut);
+        MigrationManager.instance.notifyCreateUserType(ut);
     }
 
     public void updateType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.without(ut.name).with(ut)));
-        if (!StorageService.instance.isClientMode()) 
-            MigrationManager.instance.notifyUpdateUserType(ut);
+        MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     public void dropType(UserType ut)
     {
         update(ut.keyspace, ks -> ks.withSwapped(ks.types.without(ut.name)));
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropUserType(ut);
+        MigrationManager.instance.notifyDropUserType(ut);
     }
 
     public void addFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.with(udf)));
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyCreateFunction(udf);
+        MigrationManager.instance.notifyCreateFunction(udf);
     }
 
     public void updateFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.without(udf.name(), udf.argTypes()).with(udf)));
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateFunction(udf);
+        MigrationManager.instance.notifyUpdateFunction(udf);
     }
 
     public void dropFunction(UDFunction udf)
     {
         update(udf.name().keyspace, ks -> ks.withSwapped(ks.functions.without(udf.name(), udf.argTypes())));
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropFunction(udf);
+        MigrationManager.instance.notifyDropFunction(udf);
     }
 
     public void addAggregate(UDAggregate uda)

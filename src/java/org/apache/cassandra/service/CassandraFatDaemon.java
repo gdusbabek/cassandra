@@ -1,19 +1,25 @@
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 
 import java.net.InetAddress;
 
 public class CassandraFatDaemon {
-    private static final CassandraFatDaemon instance = new CassandraFatDaemon();
     private CassandraDaemon.Server nativeServer;
     
     
     public static void main(String args[]) throws Throwable {
+        final CassandraFatDaemon instance = new CassandraFatDaemon();
+        
+        instance.startCassandraInternals();
+        
+    }
+    
+    private void startCassandraInternals() throws Throwable {
         try {
             DatabaseDescriptor.forceStaticInitialization();
         } catch (ExceptionInInitializerError e) {
@@ -30,7 +36,7 @@ public class CassandraFatDaemon {
         
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
-        instance.nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
-        instance.nativeServer.start();
+        this.nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+        this.nativeServer.start();
     }
 }

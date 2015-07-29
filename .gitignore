@@ -1,5 +1,8 @@
 .gitignore
 
+# gary
+experimental_configurations/
+
 # C*
 build/
 src/gen-java/

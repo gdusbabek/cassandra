@@ -25,9 +25,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -165,7 +167,7 @@ public abstract class CommitLogSegment
      * Returns null if there is not enough space in this segment, and a new segment is needed.
      */
     @SuppressWarnings("resource") //we pass the op order around
-    Allocation allocate(Mutation mutation, int size)
+    Allocation allocate(Collection<UUID> cfUUIDs, int size)
     {
         final OpOrder.Group opGroup = appendOrder.start();
         try
@@ -176,7 +178,7 @@ public abstract class CommitLogSegment
                 opGroup.close();
                 return null;
             }
-            markDirty(mutation, position);
+            markDirty(cfUUIDs, position);
             return new Allocation(this, opGroup, position, (ByteBuffer) buffer.duplicate().position(position).limit(position + size));
         }
         catch (Throwable t)
@@ -397,11 +399,11 @@ public abstract class CommitLogSegment
             throw new FSWriteError(e, getPath());
         }
     }
-
-    void markDirty(Mutation mutation, int allocatedPosition)
-    {
-        for (PartitionUpdate update : mutation.getPartitionUpdates())
-            ensureAtleast(cfDirty, update.metadata().cfId, allocatedPosition);
+    
+    void markDirty(Collection<UUID> groups, int allocatedPosition) {
+        for (UUID group : groups) {
+            ensureAtleast(cfDirty, group, allocatedPosition);
+        }
     }
 
     /**

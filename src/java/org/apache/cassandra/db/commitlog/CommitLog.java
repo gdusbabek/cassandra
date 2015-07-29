@@ -28,6 +28,9 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.collect.Lists;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.io.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +74,21 @@ public class CommitLog implements CommitLogMBean
     final ICompressor compressor;
     public ParameterizedClass compressorClass;
     final public String location;
+    
+    public static CommitLog construct(String path) {
+        FileUtils.createDirectory(path);
+        CommitLog log = new CommitLog(path, new CommitLogArchiver());
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(log, new ObjectName("org.apache.cassandra.db:type=Commitlog,name=" + path));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+        return log;
+    }
 
     private static CommitLog construct()
     {
@@ -116,7 +134,7 @@ public class CommitLog implements CommitLogMBean
      *
      * @return the number of mutations replayed
      */
-    public int recover() throws IOException
+    public int recover(RecoveryContext receiver) throws IOException
     {
         // If createReserveSegments is already flipped, the CLSM is running and recovery has already taken place.
         if (allocator.createReserveSegments)
@@ -139,7 +157,7 @@ public class CommitLog implements CommitLogMBean
         };
 
         // submit all existing files in the commit log dir for archiving prior to recovery - CASSANDRA-6904
-        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter))
+        for (File file : new File(location).listFiles(unmanagedFilesFilter))
         {
             archiver.maybeArchive(file.getPath(), file.getName());
             archiver.maybeWaitForArchiving(file.getName());
@@ -148,7 +166,7 @@ public class CommitLog implements CommitLogMBean
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
         archiver.maybeRestoreArchive();
 
-        File[] files = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter);
+        File[] files = new File(location).listFiles(unmanagedFilesFilter);
         int replayed = 0;
         if (files.length == 0)
         {
@@ -158,7 +176,7 @@ public class CommitLog implements CommitLogMBean
         {
             Arrays.sort(files, new CommitLogSegmentFileComparator());
             logger.info("Replaying {}", StringUtils.join(files, ", "));
-            replayed = recover(files);
+            replayed = recover(receiver, files);
             logger.info("Log replay complete, {} replayed mutations", replayed);
 
             for (File f : files)
@@ -175,19 +193,27 @@ public class CommitLog implements CommitLogMBean
      * @param clogs   the list of commit log files to replay
      * @return the number of mutations replayed
      */
-    public int recover(File... clogs) throws IOException
+    public int recover(RecoveryContext receiver, File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = CommitLogReplayer.create();
+        CommitLogReplayer recovery;
+        if (receiver != null) {
+            // non-standard commit log recovery.
+            recovery = CommitLogReplayer.create(receiver.getPositions()).withReceiver(receiver);
+        } else {
+            // standard recovery. replayer instance will be the receiver.
+            recovery = CommitLogReplayer.create();   
+        }
         recovery.recover(clogs);
         return recovery.blockForWrites();
     }
 
     /**
      * Perform recovery on a single commit log.
+     * MBean use only
      */
     public void recover(String path) throws IOException
     {
-        recover(new File(path));
+        recover(null, new File(path));
     }
 
     /**
@@ -236,6 +262,50 @@ public class CommitLog implements CommitLogMBean
     {
         executor.requestExtraSync();
     }
+    
+    public ReplayPosition add(UUID group, byte[] raw) {
+        long totalSize = raw.length + ENTRY_OVERHEAD_SIZE;
+        if (totalSize > MAX_MUTATION_SIZE) {
+            throw new IllegalArgumentException("Message is too big");
+        }
+        
+        Allocation alloc = allocator.allocate(Lists.newArrayList(group), (int)totalSize);
+        CRC32 checksum = new CRC32();
+        final ByteBuffer buffer = alloc.getBuffer();
+        try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer)) {
+            // checksummed length
+            dos.writeInt(raw.length);
+            
+            // pre-checksum
+            ByteBuffer copy = buffer.duplicate();
+            copy.position(buffer.position() - 4);
+            copy.limit(buffer.position());
+            checksum.update(copy);
+            buffer.putInt((int) checksum.getValue());
+            
+            // checksummed mutation
+            copy = buffer.duplicate();
+            dos.write(raw);
+            copy.limit(copy.position() + raw.length);
+            checksum.update(copy);
+            buffer.putInt((int)checksum.getValue());
+        } catch (IOException ex) {
+            throw new FSWriteError(ex, alloc.getSegment().getPath());
+        } finally {
+            alloc.markWritten();
+        }
+        
+        executor.finishWriteFor(alloc);
+        return alloc.getReplayPosition();
+    }
+    
+    private static Collection<UUID> distinctGroups(Mutation mutation) {
+        Set<UUID> groups = new HashSet<UUID>();
+        for (PartitionUpdate update : mutation.getPartitionUpdates()) {
+            groups.add(update.metadata().cfId);
+        }
+        return groups;
+    }
 
     /**
      * Add a Mutation to the commit log.
@@ -255,7 +325,8 @@ public class CommitLog implements CommitLogMBean
                                                              totalSize, MAX_MUTATION_SIZE));
         }
 
-        Allocation alloc = allocator.allocate(mutation, (int) totalSize);
+        Collection<UUID> cfUUIDs = distinctGroups(mutation); 
+        Allocation alloc = allocator.allocate(cfUUIDs, (int) totalSize);
         CRC32 checksum = new CRC32();
         final ByteBuffer buffer = alloc.getBuffer();
         try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
@@ -439,7 +510,7 @@ public class CommitLog implements CommitLogMBean
     {
         allocator.startUnsafe();
         executor.startUnsafe();
-        return recover();
+        return recover((RecoveryContext)null);
     }
 
     /**

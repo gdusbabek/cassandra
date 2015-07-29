@@ -100,7 +100,7 @@ public class CommitLogTest
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
-        CommitLog.instance.recover(new File[]{ tmpFile() });
+        CommitLog.instance.recover(null, new File[]{ tmpFile() });
     }
 
     @Test
@@ -607,7 +607,7 @@ public class CommitLogTest
         {
             lout.write(logData);
             //statics make it annoying to test things correctly
-            CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
+            CommitLog.instance.recover(null, new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
         }
     }
 }

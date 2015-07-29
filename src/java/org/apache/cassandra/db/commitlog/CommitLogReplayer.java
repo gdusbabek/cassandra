@@ -62,7 +62,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
-public class CommitLogReplayer
+public class CommitLogReplayer implements RecoveryContext
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = Integer.getInteger("cassandra.commitlog_max_outstanding_replay_count", 1024);
@@ -79,6 +79,7 @@ public class CommitLogReplayer
     private byte[] uncompressedBuffer;
 
     private final ReplayFilter replayFilter;
+    private RecoveryContext receiver = this;
 
     CommitLogReplayer(ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions, ReplayFilter replayFilter)
     {
@@ -93,14 +94,36 @@ public class CommitLogReplayer
         this.cfPositions = cfPositions;
         this.globalPosition = globalPosition;
         this.replayFilter = replayFilter;
+        this.receiver = this;
+    }
+    
+    public static CommitLogReplayer create(Map<UUID, ReplayPosition> positions) {
+        ReplayFilter replayFilter = ReplayFilter.create();
+        Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
+        ReplayPosition globalPosition = replayPositionOrdering.min(positions.values());
+        return new CommitLogReplayer(globalPosition, positions, replayFilter);
     }
 
     public static CommitLogReplayer create()
     {
         // compute per-CF and global replay positions
-        Map<UUID, ReplayPosition> cfPositions = new HashMap<UUID, ReplayPosition>();
+        Map<UUID, ReplayPosition> cfPositions = getAllPositions();
         Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
         ReplayFilter replayFilter = ReplayFilter.create();
+        ReplayPosition globalPosition = replayPositionOrdering.min(cfPositions.values());
+        logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
+        return new CommitLogReplayer(globalPosition, cfPositions, replayFilter);
+    }
+    
+    public CommitLogReplayer withReceiver(RecoveryContext receiver) {
+        this.receiver = receiver == null ? this : receiver;
+        return this;
+    }
+    
+    private static Map<UUID, ReplayPosition> getAllPositions() {
+        Map<UUID, ReplayPosition> cfPositions = new HashMap<>();
+        ReplayFilter replayFilter = ReplayFilter.create();
+        Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
@@ -135,9 +158,12 @@ public class CommitLogReplayer
 
             cfPositions.put(cfs.metadata.cfId, rp);
         }
-        ReplayPosition globalPosition = replayPositionOrdering.min(cfPositions.values());
-        logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
-        return new CommitLogReplayer(globalPosition, cfPositions, replayFilter);
+        return cfPositions;
+    }
+
+    @Override
+    public Map<UUID, ReplayPosition> getPositions() {
+        return getAllPositions();
     }
 
     public void recover(File[] clogs) throws IOException
@@ -253,10 +279,8 @@ public class CommitLogReplayer
             if (cfNames == null)
                 return Collections.emptySet();
 
-            return Iterables.filter(mutation.getPartitionUpdates(), new Predicate<PartitionUpdate>()
-            {
-                public boolean apply(PartitionUpdate upd)
-                {
+            return Iterables.filter(mutation.getPartitionUpdates(), new Predicate<PartitionUpdate>() {
+                public boolean apply(PartitionUpdate upd) {
                     return cfNames.contains(upd.metadata().cfName);
                 }
             });
@@ -462,16 +486,16 @@ public class CommitLogReplayer
                 // but just in case there is no harm in trying them (since we still read on an entry boundary)
                 continue;
             }
-            replayMutation(buffer, serializedSize, reader.getFilePointer(), desc);
+            receiver.receive(buffer, serializedSize, reader.getFilePointer(), desc);
         }
         return true;
     }
+    
 
     /**
      * Deserializes and replays a commit log entry.
      */
-    void replayMutation(byte[] inputBuffer, int size,
-            final long entryLocation, final CommitLogDescriptor desc) throws IOException
+    public void receive(byte[] inputBuffer, int size, long entryLocation, final CommitLogDescriptor desc) throws IOException
     {
 
         final Mutation mutation;

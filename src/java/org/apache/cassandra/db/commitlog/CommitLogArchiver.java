@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -52,7 +53,9 @@ public class CommitLogArchiver
     }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
-    private final ExecutorService executor = new JMXEnabledThreadPoolExecutor("CommitLogArchiver");
+    private static final AtomicInteger instanceCounter = new AtomicInteger(0);
+    private final String namePostpend = instanceCounter.getAndIncrement() == 0 ? "" : Integer.toString(instanceCounter.get());
+    private final ExecutorService executor = new JMXEnabledThreadPoolExecutor("CommitLogArchiver" + namePostpend);
     final String archiveCommand;
     final String restoreCommand;
     final String restoreDirectories;

@@ -73,7 +73,7 @@ public class CompressedSegment extends CommitLogSegment
         }
     }
 
-    ByteBuffer allocate(int size)
+    ByteBuffer allocateCompressed(int size)
     {
         return compressor.preferredBufferType().allocate(size);
     }
@@ -108,7 +108,7 @@ public class CompressedSegment extends CommitLogSegment
                 compressedBuffer.capacity() < neededBufferSize)
             {
                 FileUtils.clean(compressedBuffer);
-                compressedBuffer = allocate(neededBufferSize);
+                compressedBuffer = allocateCompressed(neededBufferSize);
                 compressedBufferHolder.set(compressedBuffer);
             }
 

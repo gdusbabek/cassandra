@@ -44,6 +44,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.db.commitlog.RecoveryContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,7 +270,7 @@ public class CassandraDaemon
         // replay the log if necessary
         try
         {
-            CommitLog.instance.recover();
+            CommitLog.instance.recover((RecoveryContext)null);
         }
         catch (IOException e)
         {

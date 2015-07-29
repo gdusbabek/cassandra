@@ -58,7 +58,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
     }
 
     @Override
-    void replayMutation(byte[] inputBuffer, int size, final long entryLocation, final CommitLogDescriptor desc)
+    public void receive(byte[] inputBuffer, int size, final long entryLocation, final CommitLogDescriptor desc)
     {
         NIODataInputStream bufIn = new DataInputBuffer(inputBuffer, 0, size);
         Mutation mutation;

@@ -116,7 +116,7 @@ public class CommitLogSegmentManager
                         if (task == null)
                         {
                             // if we have no more work to do, check if we should create a new segment
-                            if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
+                            if (availableSegments.isEmpty() || (activeSegments.isEmpty() || createReserveSegments))
                             {
                                 logger.debug("No segments in reserve; creating a fresh one");
                                 // TODO : some error handling in case we fail to create a new segment
@@ -169,7 +169,7 @@ public class CommitLogSegmentManager
 
         run = true;
 
-        managerThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR");
+        managerThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR-" + commitLog.location);
         managerThread.start();
     }
 
@@ -179,18 +179,18 @@ public class CommitLogSegmentManager
      *
      * @return the provided Allocation object
      */
-    public Allocation allocate(Mutation mutation, int size)
+    public Allocation allocate(Collection<UUID> cfUUIDs, int size)
     {
         CommitLogSegment segment = allocatingFrom();
 
         Allocation alloc;
-        while ( null == (alloc = segment.allocate(mutation, size)) )
+        while ( null == (alloc = segment.allocate(cfUUIDs, size)) )
         {
             // failed to allocate, so move to a new segment with enough room
             advanceAllocatingFrom(segment);
             segment = allocatingFrom;
         }
-
+        
         return alloc;
     }
 
@@ -243,6 +243,8 @@ public class CommitLogSegmentManager
                 // request that the CL be synced out-of-band, as we've finished a segment
                 commitLog.requestExtraSync();
                 return;
+            } else {
+                // need to clear something so that we allocate a new segment in the allocate thread.
             }
 
             // no more segments, so register to receive a signal when not empty
@@ -269,6 +271,7 @@ public class CommitLogSegmentManager
             // after updating allocatingFrom. Can safely block until we are signalled
             // by the allocator that new segments have been published
             signal.awaitUninterruptibly();
+            int x = 0;
         }
     }
 

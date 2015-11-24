@@ -84,7 +84,11 @@
       <groupId>com.datastax.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
       <!--<version>3.0.0-beta1-SNAPSHOT</version>-->
-      <version>3.0.0-alpha4</version>
+      <!--<version>3.0.0-alpha4</version>-->
+      <!--<version>2.2.0-rc3</version>-->
+      <!--<version>2.2.0-rc2</version>-->
+      <!--<version>2.1.5</version>-->
+      <version>2.2.0-rc2-local-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.apache.thrift</groupId>
@@ -135,7 +139,8 @@
     <dependency>
       <groupId>org.caffinitas.ohc</groupId>
       <artifactId>ohc-core</artifactId>
-      <version>0.4.2</version>
+      <!--<version>0.4.2</version>-->
+      <version>0.3.4</version>
     </dependency>
     <dependency>
     	<groupId>org.ow2.asm</groupId>
@@ -261,6 +266,24 @@
       <artifactId>metrics-json</artifactId>
       <version>3.1.2</version>
     </dependency>
+    
+    <!-- cassandra 2.2 specific -->
+    <dependency>
+      <groupId>net.sf.supercsv</groupId>
+      <artifactId>super-csv</artifactId>
+      <version>2.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.github.tjake</groupId>
+      <artifactId>crc32ex</artifactId>
+      <version>0.1.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pig</groupId>
+      <artifactId>pig</artifactId>
+      <version>0.12.1</version>
+    </dependency>
+    
   </dependencies>
 
 

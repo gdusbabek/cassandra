@@ -629,9 +629,29 @@ public class CassandraDaemon
     {
         instance.deactivate();
     }
+    
+    private static void maybeStartSparkWorker() {
+        boolean startSpark = Boolean.parseBoolean(System.getProperty("SPARK_ENABLED", "false"));
+        final int webUiPort = Integer.parseInt(System.getProperty("SPARK_WEBUI_PORT", "8081"));
+        final int cores = Integer.parseInt(System.getProperty("SPARK_CORES", "1"));
+        final String sparkMaster = System.getProperty("SPARK_MASTER", "spark://localhost:7077");
+        if (startSpark) {
+            new Thread("Embedded Spark Worker") {
+                public void run() {
+                    logger.info("Starting Spark worker");      
+                    org.apache.spark.deploy.worker.Worker.main(new String[] {
+                            "--webui-port", Integer.toString(webUiPort),
+                            "--cores", Integer.toString(cores),
+                            sparkMaster,
+                    });
+                }
+            }.start();
+        }
+    }
 
     public static void main(String[] args)
     {
+        maybeStartSparkWorker();
         instance.activate();
     }
 

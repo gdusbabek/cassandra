@@ -53,6 +53,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
+      <!-- todo: should be 3.0.2? -->
       <version>3.1.0</version>
     </dependency>
     <dependency>
@@ -68,7 +69,7 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
-      <version>4.0.23.Final</version>
+      <version>4.0.27.Final</version>
     </dependency>
     <dependency>
       <groupId>org.antlr</groupId>
@@ -385,6 +386,28 @@
         </executions>
       </plugin>
 
+      <!-- bring all the dependencies to one place -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>2.10</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <excludeArtifactIds>io.dropwizard.metrics:metrics-core:3.1.0</excludeArtifactIds>
+              <outputDirectory>${project.build.directory}/lib/maven-lib</outputDirectory>
+              <overWriteReleases>false</overWriteReleases>
+              <overWriteSnapshots>false</overWriteSnapshots>
+              <overWriteIfNewer>true</overWriteIfNewer>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 

@@ -470,6 +470,12 @@ listen_address: localhost
 # Leaving this blank will set it to the same value as listen_address
 # broadcast_address: 1.2.3.4
 
+# Location of domain socket for in-process clients.
+domain_address: /tmp/cassandra_domain_socket_0
+
+# Whether to start the domain transport server.
+start_domain_transport: false
+
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
 # internode_authenticator: org.apache.cassandra.auth.AllowAllInternodeAuthenticator

@@ -136,6 +136,9 @@ public class Config
     public Integer native_transport_max_frame_size_in_mb = 256;
     public volatile Long native_transport_max_concurrent_connections = -1L;
     public volatile Long native_transport_max_concurrent_connections_per_ip = -1L;
+    
+    public Boolean start_domain_transport = false;
+    public String domain_address;
 
     @Deprecated
     public Integer thrift_max_message_length_in_mb = 16;

@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
+import io.netty.channel.unix.DomainSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +72,7 @@ public class DatabaseDescriptor
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
+    private static DomainSocketAddress domainAddress;
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator;
@@ -170,6 +172,7 @@ public class DatabaseDescriptor
     {
         listenAddress = null;
         rpcAddress = null;
+        domainAddress = null;
         broadcastAddress = null;
         broadcastRpcAddress = null;
 
@@ -236,6 +239,11 @@ public class DatabaseDescriptor
         else
         {
             rpcAddress = FBUtilities.getLocalAddress();
+        }
+        
+        if (config.domain_address != null)
+        {
+            domainAddress = new DomainSocketAddress(config.domain_address);
         }
 
         /* RPC address to broadcast */
@@ -1245,6 +1253,11 @@ public class DatabaseDescriptor
     {
         return rpcAddress;
     }
+    
+    public static DomainSocketAddress getDomainAddress() 
+    {
+        return domainAddress;
+    }
 
     public static void setBroadcastRpcAddress(InetAddress broadcastRPCAddr)
     {
@@ -1294,6 +1307,11 @@ public class DatabaseDescriptor
     public static Integer getInternodeRecvBufferSize()
     {
         return conf.internode_recv_buff_size_in_bytes;
+    }
+    
+    public static boolean startDomainTransport()
+    {
+        return conf.start_domain_transport;
     }
 
     public static boolean startNativeTransport()

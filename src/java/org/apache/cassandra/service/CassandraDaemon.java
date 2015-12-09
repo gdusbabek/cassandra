@@ -127,6 +127,7 @@ public class CassandraDaemon
 
     public Server thriftServer;
     public Server nativeServer;
+    public Server domainServer;
 
     private final boolean runManaged;
     protected final StartupChecks startupChecks;
@@ -358,6 +359,7 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+        domainServer = new org.apache.cassandra.transport.DomainServer(DatabaseDescriptor.getDomainAddress(), nativePort);
 
         completeSetup();
     }
@@ -447,6 +449,14 @@ public class CassandraDaemon
             thriftServer.start();
         else
             logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
+        
+        String domainFlag = System.getProperty("cassandra.start_domain_transport");
+        if ((domainFlag != null && Boolean.parseBoolean(domainFlag)) || (domainFlag == null && DatabaseDescriptor.startDomainTransport()))
+        {
+            domainServer.start();
+        }
+        else
+            logger.info("Not starting domain transport.");
     }
 
     /**
@@ -461,6 +471,7 @@ public class CassandraDaemon
         logger.info("Cassandra shutting down...");
         thriftServer.stop();
         nativeServer.stop();
+        domainServer.stop();
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node

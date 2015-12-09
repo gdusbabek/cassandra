@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.datastax.driver.core.utils.Hosts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -203,7 +204,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             // hadoop needs hostname, not ip
             int endpointIndex = 0;
             for (Host endpoint : hosts)
-                endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
+                endpoints[endpointIndex++] = Hosts.getHost(endpoint.getSocketAddress()).getHostName();
 
             for (TokenRange subSplit : subSplits.keySet())
             {

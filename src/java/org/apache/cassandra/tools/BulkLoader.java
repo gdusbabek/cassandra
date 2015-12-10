@@ -24,6 +24,7 @@ import java.net.MalformedURLException;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import com.datastax.driver.core.JdkSSLOptions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.*;
@@ -266,7 +267,10 @@ public class BulkLoader
             throw new RuntimeException("Could not create SSL Context.", e);
         }
 
-        return new SSLOptions(sslContext, clientEncryptionOptions.cipher_suites);
+        return JdkSSLOptions.builder()
+                .withCipherSuites(clientEncryptionOptions.cipher_suites)
+                .withSSLContext(sslContext)
+                .build();
     }
 
     static class ExternalClient extends NativeSSTableLoaderClient

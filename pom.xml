@@ -33,6 +33,7 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <!-- lib contains 1.7.7, but ant downloads 1.7.12. -->
       <version>1.7.12</version>
     </dependency>
     <dependency>
@@ -53,7 +54,6 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
-      <!-- todo: should be 3.0.2? -->
       <version>3.1.0</version>
     </dependency>
     <dependency>
@@ -69,6 +69,7 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
+      <!-- lib contains 4.0.23, but we need >= 4.0.26 to get epoll. -->
       <version>4.0.27.Final</version>
     </dependency>
     <dependency>
@@ -84,12 +85,9 @@
     <dependency>
       <groupId>com.datastax.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
-      <!--<version>3.0.0-beta1-SNAPSHOT</version>-->
-      <!--<version>3.0.0-alpha4</version>-->
-      <!--<version>2.2.0-rc3</version>-->
-      <!--<version>2.2.0-rc2</version>-->
-      <!--<version>2.1.5</version>-->
-      <version>2.2.0-rc2-local-SNAPSHOT</version>
+      <!-- todo: this will eventually be changed to the local branch -->
+      <!--<version>2.2.0-rc2-local-SNAPSHOT</version>-->
+      <version>3.0.0-beta1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.thrift</groupId>
@@ -140,8 +138,7 @@
     <dependency>
       <groupId>org.caffinitas.ohc</groupId>
       <artifactId>ohc-core</artifactId>
-      <!--<version>0.4.2</version>-->
-      <version>0.3.4</version>
+      <version>0.4.2</version>
     </dependency>
     <dependency>
     	<groupId>org.ow2.asm</groupId>
@@ -149,6 +146,7 @@
     	<version>5.0.4</version>
     </dependency>
     <dependency>
+      <!-- this was what I could find in a public repo -->
       <groupId>com.thinkaurelius.thrift</groupId>
       <artifactId>thrift-server</artifactId>
       <version>0.3.7</version>
@@ -212,77 +210,9 @@
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
+      <!-- ant is currently downloading 2.2 -->
       <version>2.4</version>
       <scope>test</scope>
-    </dependency>
-    
-    <!-- here it is. -->
-    <dependency>
-      <groupId>org.apache.spark</groupId>
-      <artifactId>spark-core_${scala.binary.version}</artifactId>
-      <version>${spark.binary.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.spark</groupId>
-      <artifactId>spark-network-common_${scala.binary.version}</artifactId>
-      <version>${spark.binary.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.spark</groupId>
-      <artifactId>spark-network-shuffle_${scala.binary.version}</artifactId>
-      <version>${spark.binary.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.json4s</groupId>
-      <artifactId>json4s-ast_${scala.binary.version}</artifactId>
-      <version>3.2.10</version>
-    </dependency>
-    <dependency>
-      <groupId>org.scala-lang</groupId>
-      <artifactId>scala-library</artifactId>
-      <version>2.10.5</version>
-    </dependency>
-    <dependency>
-      <groupId>com.typesafe</groupId>
-      <artifactId>config</artifactId>
-      <version>1.2.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.fusesource.leveldbjni</groupId>
-      <artifactId>leveldbjni-all</artifactId>
-      <version>1.8</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>2.4.4</version>
-    </dependency>
-    <dependency>
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
-      <version>3.0.1</version>
-    </dependency>
-    <dependency>
-      <groupId>io.dropwizard.metrics</groupId>
-      <artifactId>metrics-json</artifactId>
-      <version>3.1.2</version>
-    </dependency>
-    
-    <!-- cassandra 2.2 specific -->
-    <dependency>
-      <groupId>net.sf.supercsv</groupId>
-      <artifactId>super-csv</artifactId>
-      <version>2.1.0</version>
-    </dependency>
-    <dependency>
-      <groupId>com.github.tjake</groupId>
-      <artifactId>crc32ex</artifactId>
-      <version>0.1.2</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.pig</groupId>
-      <artifactId>pig</artifactId>
-      <version>0.12.1</version>
     </dependency>
     
   </dependencies>

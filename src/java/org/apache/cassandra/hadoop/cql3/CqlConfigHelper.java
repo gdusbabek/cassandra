@@ -34,6 +34,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
+import com.datastax.driver.core.JdkSSLOptions;
 import com.google.common.base.Optional;
 import org.apache.commons.lang3.StringUtils;
 
@@ -545,10 +546,13 @@ public class CqlConfigHelper
             {
                 throw new RuntimeException(e);
             }
-            String[] css = SSLOptions.DEFAULT_SSL_CIPHER_SUITES;
+            String[] css = { "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_RSA_WITH_AES_256_CBC_SHA" };
             if (cipherSuites.isPresent())
                 css = cipherSuites.get().split(",");
-            return Optional.of(new SSLOptions(context,css));
+            return Optional.of(JdkSSLOptions.builder()
+                    .withCipherSuites(css)
+                    .withSSLContext(context)
+                    .build());
         }
         return Optional.absent();
     }

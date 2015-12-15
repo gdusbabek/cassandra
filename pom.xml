@@ -86,8 +86,8 @@
       <groupId>com.datastax.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
       <!-- todo: this will eventually be changed to the local branch -->
-      <!--<version>2.2.0-rc2-local-SNAPSHOT</version>-->
-      <version>3.0.0-beta1</version>
+      <version>3.0.0-SNAPSHOT-domain</version>
+      <!--<version>3.0.0-beta1</version>-->
     </dependency>
     <dependency>
       <groupId>org.apache.thrift</groupId>

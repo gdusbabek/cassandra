@@ -132,6 +132,7 @@ public class CassandraDaemon
 
     public Server thriftServer;
     private NativeTransportService nativeTransportService;
+    private DomainTransportService domainTransportService;
 
     private final boolean runManaged;
     protected final StartupChecks startupChecks;
@@ -377,6 +378,9 @@ public class CassandraDaemon
 
         // Native transport
         nativeTransportService = new NativeTransportService();
+        
+        // domain transport
+        domainTransportService = new DomainTransportService();
 
         completeSetup();
     }
@@ -455,14 +459,27 @@ public class CassandraDaemon
      */
     public void start()
     {
+        boolean transportStarted = false;
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
             startNativeTransport();
-            StorageService.instance.setRpcReady(true);
+            transportStarted = true;
         }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
+        
+        String domainFlag = System.getProperty("cassandra.start_domain_transport");
+        if ((domainFlag != null && Boolean.parseBoolean(domainFlag)) || (domainFlag == null && DatabaseDescriptor.startDomainTransport()))
+        {
+            startDomainTransport();
+            transportStarted = true;
+        } else
+            logger.info("Not starting domain transport.");
+        
+        if (transportStarted) {
+            StorageService.instance.setRpcReady(true);
+        }
 
         String rpcFlag = System.getProperty("cassandra.start_rpc");
         if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
@@ -485,6 +502,8 @@ public class CassandraDaemon
             thriftServer.stop();
         if (nativeTransportService != null)
             nativeTransportService.destroy();
+        if (domainTransportService != null)
+            domainTransportService.destroy();
         StorageService.instance.setRpcReady(false);
         
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
@@ -589,6 +608,25 @@ public class CassandraDaemon
                 exitOrFail(3, "Exception encountered during startup: " + e.getMessage());
             }
         }
+    }
+    
+    public void startDomainTransport()
+    {
+        if (domainTransportService == null)
+            throw new IllegalStateException("setup() must be called first for CassandraDaemon");
+        else
+            domainTransportService.start();
+    }
+    
+    public void stopDomainTransport()
+    {
+        if (domainTransportService != null)
+            domainTransportService.stop();
+    }
+    
+    public boolean isDomainTransportRunning()
+    {
+        return domainTransportService != null && domainTransportService.isRunning();
     }
 
     public void startNativeTransport()

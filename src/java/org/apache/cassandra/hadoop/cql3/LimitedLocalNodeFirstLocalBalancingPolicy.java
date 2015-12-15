@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -178,8 +179,15 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
 
     private static boolean isLocalHost(Host host)
     {
-        InetAddress hostAddress = host.getAddress();
-        return hostAddress.isLoopbackAddress() || localAddresses.contains(hostAddress);
+        if (host.getSocketAddress() instanceof InetSocketAddress)
+        {
+            InetAddress hostAddress = ((InetSocketAddress)host.getSocketAddress()).getAddress();
+            return hostAddress.isLoopbackAddress() || localAddresses.contains(hostAddress);
+        }
+        else
+        {
+            return false;
+        }
     }
 
     private static Set<InetAddress> getLocalInetAddresses()

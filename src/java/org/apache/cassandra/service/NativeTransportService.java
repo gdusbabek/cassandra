@@ -24,6 +24,10 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import org.apache.cassandra.transport.CBUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,9 +84,16 @@ public class NativeTransportService
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
 
         org.apache.cassandra.transport.Server.Builder builder = new org.apache.cassandra.transport.Server.Builder()
-                                                                .withEventExecutor(eventExecutorGroup)
-                                                                .withEventLoopGroup(workerGroup)
-                                                                .withHost(nativeAddr);
+                .withEventExecutor(eventExecutorGroup)
+                .withEventLoopGroup(workerGroup)
+                .withHost(nativeAddr)
+                .withChannel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+                .withBootstrapChildOption(ChannelOption.TCP_NODELAY, true)
+                .withBootstrapChildOption(ChannelOption.SO_LINGER, 0)
+                .withBootstrapChildOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
+                .withBootstrapChildOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
+                .withBootstrapChildOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
+                .withBootstrapChildOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 + 1024);
 
         if (!DatabaseDescriptor.getClientEncryptionOptions().enabled)
         {

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -114,7 +115,7 @@ public class NativeTransportServiceTest
                         assertEquals(1, service.getServers().size());
                         Server server = service.getServers().iterator().next();
                         assertFalse(server.useSSL);
-                        assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
+                        assertEquals(((InetSocketAddress)server.socket).getPort(), DatabaseDescriptor.getNativeTransportPort());
                     });
     }
 
@@ -131,7 +132,7 @@ public class NativeTransportServiceTest
                         assertEquals(1, service.getServers().size());
                         Server server = service.getServers().iterator().next();
                         assertTrue(server.useSSL);
-                        assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
+                        assertEquals(((InetSocketAddress)server.socket).getPort(), DatabaseDescriptor.getNativeTransportPort());
                     }, false, 1);
     }
 
@@ -148,7 +149,7 @@ public class NativeTransportServiceTest
                         assertEquals(1, service.getServers().size());
                         Server server = service.getServers().iterator().next();
                         assertTrue(server.useSSL);
-                        assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
+                        assertEquals(((InetSocketAddress)server.socket).getPort(), DatabaseDescriptor.getNativeTransportPort());
                     }, false, 1);
     }
 
@@ -170,7 +171,7 @@ public class NativeTransportServiceTest
                                                     )
                                     ),
                                     service.getServers().stream().map((Server s) ->
-                                                                      Pair.create(s.useSSL, s.socket.getPort())).collect(Collectors.toSet())
+                                                                      Pair.create(s.useSSL, ((InetSocketAddress)s.socket).getPort())).collect(Collectors.toSet())
                         );
                     }, false, 1);
     }

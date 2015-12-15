@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.datastax.driver.core.*;
 
+import com.datastax.driver.core.utils.Hosts;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
 import org.apache.cassandra.config.CFMetaData;
@@ -79,7 +80,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                 Range<Token> range = new Range<>(tokenFactory.fromString(tokenRange.getStart().getValue().toString()),
                                                  tokenFactory.fromString(tokenRange.getEnd().getValue().toString()));
                 for (Host endpoint : endpoints)
-                    addRangeForEndpoint(range, endpoint.getAddress());
+                    addRangeForEndpoint(range, Hosts.getHost(endpoint.getSocketAddress()));
             }
 
             Types types = fetchTypes(keyspace, session);

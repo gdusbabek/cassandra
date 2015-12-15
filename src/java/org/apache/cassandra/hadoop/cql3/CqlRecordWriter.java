@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.datastax.driver.core.utils.Hosts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -544,7 +545,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
             List<InetAddress> addresses = new ArrayList<>(hostSet.size());
             for (Host host: hostSet)
             {
-                addresses.add(host.getAddress());
+                addresses.add(Hosts.getHost(host.getSocketAddress()));
             }
             return addresses;
         }

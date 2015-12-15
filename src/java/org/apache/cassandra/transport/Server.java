@@ -20,6 +20,7 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+import io.netty.channel.unix.DomainSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,12 +83,13 @@ public class Server implements CassandraDaemon.Server
         }
     };
 
-    public final InetSocketAddress socket;
+    public final SocketAddress socket;
     public boolean useSSL = false;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private EventLoopGroup workerGroup;
     private EventExecutor eventExecutorGroup;
+    private ServerBootstrap bootstrap;
 
     private Server (Builder builder)
     {
@@ -108,36 +111,11 @@ public class Server implements CassandraDaemon.Server
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         MigrationManager.instance.register(notifier);
-    }
-
-    public void stop()
-    {
-        if (isRunning.compareAndSet(true, false))
-            close();
-    }
-
-    public boolean isRunning()
-    {
-        return isRunning.get();
-    }
-
-    public synchronized void start()
-    {
-        if(isRunning()) 
-            return;
-
-        // Configure the server.
-        ServerBootstrap bootstrap = new ServerBootstrap()
-                                    .channel(useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
-                                    .childOption(ChannelOption.TCP_NODELAY, true)
-                                    .childOption(ChannelOption.SO_LINGER, 0)
-                                    .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
-                                    .childOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
-                                    .childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
-                                    .childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 * 1024);
+        
+        bootstrap = builder.bootstrap;
         if (workerGroup != null)
             bootstrap = bootstrap.group(workerGroup);
-
+        
         final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
         if (this.useSSL)
         {
@@ -156,6 +134,23 @@ public class Server implements CassandraDaemon.Server
         {
             bootstrap.childHandler(new Initializer(this));
         }
+    }
+
+    public void stop()
+    {
+        if (isRunning.compareAndSet(true, false))
+            close();
+    }
+
+    public boolean isRunning()
+    {
+        return isRunning.get();
+    }
+
+    public synchronized void start()
+    {
+        if(isRunning()) 
+            return;
 
         // Bind and start to accept incoming connections.
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
@@ -163,7 +158,7 @@ public class Server implements CassandraDaemon.Server
 
         ChannelFuture bindFuture = bootstrap.bind(socket);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
-            throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()));
+            throw new IllegalStateException(String.format("Failed to bind to %s.", socket.toString()));
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
@@ -189,7 +184,18 @@ public class Server implements CassandraDaemon.Server
         private boolean useSSL = false;
         private InetAddress hostAddr;
         private int port = -1;
-        private InetSocketAddress socket;
+        private SocketAddress socket;
+        private ServerBootstrap bootstrap = new ServerBootstrap();
+        
+        public <T> Builder withBootstrapChildOption(ChannelOption<T> option, T value) {
+            bootstrap = bootstrap.childOption(option, value);
+            return this;
+        }
+        
+        public Builder withChannel(Class<? extends ServerChannel> channelClass) {
+            bootstrap = bootstrap.channel(channelClass);
+            return this;
+        }
 
         public Builder withSSL(boolean useSSL)
         {
@@ -206,6 +212,11 @@ public class Server implements CassandraDaemon.Server
         public Builder withEventExecutor(EventExecutor eventExecutor)
         {
             this.eventExecutorGroup = eventExecutor;
+            return this;
+        }
+        
+        public Builder withDomainSocket(DomainSocketAddress socket) {
+            this.socket = socket;
             return this;
         }
 
@@ -228,7 +239,7 @@ public class Server implements CassandraDaemon.Server
             return new Server(this);
         }
 
-        private InetSocketAddress getSocket()
+        private SocketAddress getSocket()
         {
             if (this.socket != null)
                 return this.socket;
@@ -242,6 +253,11 @@ public class Server implements CassandraDaemon.Server
                     throw new IllegalStateException("Missing host");
                 return this.socket;
             }
+        }
+        
+        private ServerBootstrap getBootstrap()
+        {
+            return bootstrap;
         }
     }
 
@@ -456,6 +472,7 @@ public class Server implements CassandraDaemon.Server
     private static class EventNotifier extends MigrationListener implements IEndpointLifecycleSubscriber
     {
         private final Server server;
+        private static final int rpcPort = DatabaseDescriptor.getRpcPort();
 
         // We keep track of the latest events we have sent to avoid sending duplicates
         // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236)
@@ -522,27 +539,27 @@ public class Server implements CassandraDaemon.Server
 
         public void onJoinCluster(InetAddress endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), rpcPort));
         }
 
         public void onLeaveCluster(InetAddress endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), rpcPort));
         }
 
         public void onMove(InetAddress endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), rpcPort));
         }
 
         public void onUp(InetAddress endpoint)
         {
-            onStatusChange(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), rpcPort));
         }
 
         public void onDown(InetAddress endpoint)
         {
-            onStatusChange(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), rpcPort));
         }
 
         private void onTopologyChange(InetAddress endpoint, Event.TopologyChange event)

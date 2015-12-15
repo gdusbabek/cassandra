@@ -317,7 +317,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             // hadoop needs hostname, not ip
             int endpointIndex = 0;
             for (Host endpoint : hosts)
-                endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
+                endpoints[endpointIndex++] = endpoint.getAddress();
 
             boolean partitionerIsOpp = partitioner instanceof OrderPreservingPartitioner || partitioner instanceof ByteOrderedPartitioner;
 

@@ -13,6 +13,17 @@
     <spark.binary.version>1.5.2</spark.binary.version>
     <!--<spark.binary.version>1.6.0-SNAPSHOT</spark.binary.version>-->
   </properties>
+  
+  <repositories>
+    <repository>
+      <id>gdusbabek-java-driver-mvn-repo</id>
+      <url>https://raw.github.com/gdusbabek/java-driver/mvn-repo/</url>
+      <snapshots>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <dependencies>
     <dependency>
@@ -85,9 +96,7 @@
     <dependency>
       <groupId>com.datastax.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
-      <!-- todo: this will eventually be changed to the local branch -->
       <version>3.0.0-SNAPSHOT-domain</version>
-      <!--<version>3.0.0-beta1</version>-->
     </dependency>
     <dependency>
       <groupId>org.apache.thrift</groupId>
